@@ -23,3 +23,10 @@ An accuracy of 95.38% is received after adding UNK-tagging.
 The program "Hindi.py" analyses and learns POS tagging in the Indian language Hindi, including UNK-tagging.
 Accuracy without UNK tags: 80.95%
 Accuracy with UNK tags: 80.97%
+
+# Running the program
+The program uses Python 3 and is made to run on Linux systems. It requires the following installations before execution:
+- nltk
+- numpy
+- pandas
+- re
