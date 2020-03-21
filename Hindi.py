@@ -1,3 +1,4 @@
+from nltk.corpus import indian
 from nltk import FreqDist, WittenBellProbDist
 from nltk.corpus import brown
 from nltk.util import ngrams
@@ -22,19 +23,16 @@ while choice != '1' and choice != '2':
 
 # ------------------------------------------------------ Splitting -----------------------------------------------------
 print_heading("Splitting")
-sentences = list(brown.tagged_sents(tagset='universal')[:20000])
 
-# removing sentences with tokens>100
-remove_count = 0
-for sentence in sentences:
-    if len(sentence) > 100:
-        sentences.remove(sentence)
-        remove_count = remove_count + 1
+# Total 540 sentences
+sentences = indian.tagged_sents('hindi.pos')
 
-train_sentences = sentences[:10000]
+# First 440 as training set
+train_sentences = sentences[:440]
 print("Length of training set: ", len(train_sentences))
 
-test_sentences = sentences[10000:10500]
+# Last 100 as testing set
+test_sentences = sentences[440:540]
 print("Length of testing set: ", len(test_sentences))
 
 
@@ -78,16 +76,6 @@ def search_for_pattern(pattern, words_list):
     return return_list
 
 
-def search_proper_nouns(words_list, start_list):
-    capitalized = search_for_pattern("^[A-Z][a-z]+.*", words_list)
-    start_of_sentence_words = [w for (w, t) in start_list]
-    return_list = []
-    for word in capitalized:
-        if word not in start_of_sentence_words:
-            return_list.append(word)
-    return return_list
-
-
 # This function replaces words in words_list that occur in train_sentences with unk-tags
 # Returns new list of word_tag_pairs with replaced UNK-tags
 def replace_with_unk(words_list, replace_tag, all_sentences):
@@ -119,22 +107,12 @@ def train_preprocessing(train_sentences):
     print("\nInfrequent words:")
     print(len(infrequent_words_train_set))
 
-    # Checking for proper noun pattern among infrequent words
-    print("\nProper Nouns:")
-    train_proper_nouns = search_proper_nouns(infrequent_words_train_set, start_words_train_set)
-
-    # Replacing proper nouns with "PN-UNK"
-    train_sentences = replace_with_unk(train_proper_nouns, "PN-UNK", train_sentences)
-
-    # Updating infrequent words
-    infrequent_words_train_set = get_infrequent(train_sentences)
-
     # Checking for -ing pattern (gerund) among infrequent words
-    print("\nGerunds:")
-    train_gerunds = search_for_pattern(".*ing$", infrequent_words_train_set)
+    print("\nPlural Nouns:")
+    train_plural_nouns = search_for_pattern(".+ों$", infrequent_words_train_set)
 
     # Replacing gerunds with "UNK-ing"
-    train_sentences = replace_with_unk(train_gerunds, "UNK-ing", train_sentences)
+    train_sentences = replace_with_unk(train_plural_nouns, "UNK-o", train_sentences)
     return train_sentences, all_words_train_set
 
 
@@ -165,21 +143,11 @@ def test_preprocessing(test_sentences, all_words_train_set):
     print(len(infrequent_words_test_set))
 
     # Checking for proper noun pattern among infrequent words
-    print("\nProper Nouns:")
-    test_proper_nouns = search_proper_nouns(infrequent_words_test_set, start_words_test_set)
+    print("\nPlural Nouns:")
+    test_plural_nouns = search_for_pattern(".+ों$", infrequent_words_test_set)
 
-    # Replacing proper nouns with "PN-UNK"
-    test_sentences = replace_with_unk(test_proper_nouns, "PN-UNK", test_sentences)
-
-    start_words_test_set, all_words_test_set = setup_unk_tagging(test_sentences)
-    infrequent_words_test_set = get_infrequent_for_test(all_words_test_set, all_words_train_set)
-
-    # Checking for -ing pattern (gerund) among infrequent words
-    print("\nGerunds:")
-    test_gerunds = search_for_pattern(".*ing$", infrequent_words_test_set)
-
-    # Replacing gerunds with "UNK-ing"
-    test_sentences = replace_with_unk(test_gerunds, "UNK-ing", test_sentences)
+    # Replacing o-ending with "UNK-o"
+    test_sentences = replace_with_unk(test_plural_nouns, "UNK-o", test_sentences)
     return test_sentences
 
 
@@ -261,12 +229,6 @@ for tag in tags2:
 end_tags = [t for (w, t) in end_words]
 smoothed_transition_prob['</s>'] = WittenBellProbDist(FreqDist(end_tags), bins=1e5)
 
-print("Transition probability test:")
-print("alpha('DET', 'NOUN') " + str(smoothed_transition_prob['NOUN'].prob('DET')))
-print("alpha('DET', 'DET') " + str(smoothed_transition_prob['DET'].prob('DET')))
-print("alpha('.', '</s>') " + str(smoothed_transition_prob['</s>'].prob('.')))
-print("alpha('<s>', 'DET') " + str(smoothed_transition_prob['DET'].prob('<s>')))
-
 # Smoothing emission probabilities
 # all emissions (q, w) are stored in word_tag_pairs
 smoothed_emission_prob = {}
@@ -274,13 +236,6 @@ tags = set([t for (_, t) in word_tag_pairs])
 for tag in tags:
     words = [w for (w, t) in word_tag_pairs if t == tag]
     smoothed_emission_prob[tag] = WittenBellProbDist(FreqDist(words), bins=1e5)
-
-print("\nEmission probability test:")
-if choice == '2':
-    print("beta('NOUN', 'UNK-ing') " + str(smoothed_emission_prob['NOUN'].prob('UNK-ing')))
-    print("beta('NOUN', 'scheduling') " + str(smoothed_emission_prob['NOUN'].prob('scheduling')))
-print("beta('DET', 'the') " + str(smoothed_emission_prob['DET'].prob('the')))
-print("beta('NOUN', 'hugging') " + str(smoothed_emission_prob['NOUN'].prob('hugging')))
 
 # -------------------------------------------- Training: Viterbi Algorithm ---------------------------------------------
 
